@@ -130,6 +130,7 @@ export class PairingManager {
     this._localBus.postMessage({
       type: 'EPT_HELLO', peerId: this._peerId, role: getState().role,
     });
+    console.log('[local] BroadcastChannel started, announced peerId:', this._peerId);
 
     this._localBus.onmessage = async ({ data: msg }) => {
       if (!msg?.type?.startsWith('EPT_')) return;
@@ -137,6 +138,7 @@ export class PairingManager {
       if (msg.type === 'EPT_HELLO') {
         if (msg.peerId === this._peerId) return;
         if (this._localPeerIds.has(msg.peerId)) return;
+        console.log('[local] EPT_HELLO from', msg.peerId, 'role:', msg.role, 'isReply:', msg.isReply);
 
         // Reply so that tabs opening later discover us
         if (!msg.isReply) {
@@ -149,18 +151,24 @@ export class PairingManager {
 
         // Higher peerId initiates to prevent both sides creating offers simultaneously
         if (this._peerId > msg.peerId) {
+          console.log('[local] initiating offer to', msg.peerId);
           const { sdp } = await this._peerManager.createOffer(msg.peerId, { waitForIce: false });
           this._localBus.postMessage({ type: 'EPT_OFFER', to: msg.peerId, from: this._peerId, sdp });
+        } else {
+          console.log('[local] waiting for offer from', msg.peerId);
         }
 
       } else if (msg.type === 'EPT_OFFER' && msg.to === this._peerId) {
         if (this._localPeerIds.has(msg.from)) return;
+        console.log('[local] EPT_OFFER from', msg.from);
         this._localPeerIds.add(msg.from);
         const answer = await this._peerManager.createAnswer(msg.from, msg.sdp, { waitForIce: false });
         this._localBus.postMessage({ type: 'EPT_ANSWER', to: msg.from, from: this._peerId, sdp: answer });
+        console.log('[local] sent EPT_ANSWER to', msg.from);
 
       } else if (msg.type === 'EPT_ANSWER' && msg.to === this._peerId) {
-        await this._peerManager.applyAnswer(msg.from, msg.sdp).catch(() => {});
+        console.log('[local] EPT_ANSWER from', msg.from);
+        await this._peerManager.applyAnswer(msg.from, msg.sdp).catch(e => console.error('[local] applyAnswer failed:', e));
 
       } else if (msg.type === 'EPT_ICE' && msg.to === this._peerId) {
         await this._peerManager.addIceCandidate(msg.from, msg.candidate).catch(() => {});
@@ -292,7 +300,20 @@ export class PairingManager {
   }
 
   async _initiateConnectionToPeer(remotePeerId) {
-    if (remotePeerId === this._peerId || this._localPeerIds.has(remotePeerId)) return;
+    if (remotePeerId === this._peerId) return;
+
+    if (this._localPeerIds.has(remotePeerId)) {
+      // Peer was seen via BroadcastChannel — only skip relay if the DC is already open
+      const peer = this._peerManager._peers.get(remotePeerId);
+      if (peer?.dc?.readyState === 'open') {
+        console.log('[relay] skipping', remotePeerId, '— already connected via local bridge');
+        return;
+      }
+      // Local bridge didn't fully connect; clean up and let relay try instead
+      console.log('[relay] local bridge stalled for', remotePeerId, '(dc:', peer?.dc?.readyState ?? 'none', ') — falling back to relay');
+      if (peer) this._peerManager.removePeer(remotePeerId);
+    }
+
     console.log('[relay] initiating offer to', remotePeerId);
     try {
       const { sdp } = await this._peerManager.createOffer(remotePeerId);
