@@ -14,9 +14,9 @@ const initialState = {
   sessionStartWallClock: null,
   theme: localStorage.getItem('ept-theme') || 'dark',
   role: new URLSearchParams(location.search).get('role') || 'controller',
-  peerId: localStorage.getItem('ept-peer-id') || (() => {
+  peerId: sessionStorage.getItem('ept-peer-id') || (() => {
     const id = uuid();
-    localStorage.setItem('ept-peer-id', id);
+    sessionStorage.setItem('ept-peer-id', id);
     return id;
   })(),
   sessionCode: null,
