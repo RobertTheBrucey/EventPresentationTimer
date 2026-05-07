@@ -34,6 +34,7 @@ export class RelayClient {
 
     this._ws.onopen = () => {
       this._reconnectDelay = 1000;
+      console.log('[ws] open →', this._url);
       this._send({ type: 'HELLO', room: this._room, peerId: this._peerId });
       // Flush messages queued before socket opened
       for (const msg of this._pending) this._ws.send(msg);
@@ -44,17 +45,19 @@ export class RelayClient {
     this._ws.onmessage = e => {
       let msg;
       try { msg = JSON.parse(e.data); } catch { return; }
+      console.log('[ws] ←', msg.type, msg);
       this._emit('message', msg);
       if (msg.type) this._emit(msg.type, msg);
     };
 
-    this._ws.onclose = () => {
+    this._ws.onclose = e => {
+      console.warn('[ws] closed', e.code, e.reason);
       this._emit('disconnected');
       this._scheduleReconnect();
     };
 
-    this._ws.onerror = () => {
-      // onclose fires after onerror
+    this._ws.onerror = e => {
+      console.error('[ws] error', e);
     };
   }
 
@@ -67,8 +70,10 @@ export class RelayClient {
   _send(data) {
     const serialised = JSON.stringify(data);
     if (this._ws?.readyState === WebSocket.OPEN) {
+      console.log('[ws] →', data.type, data);
       this._ws.send(serialised);
     } else if (!this._closed) {
+      console.log('[ws] queued (not open):', data.type);
       if (this._pending.length < 32) this._pending.push(serialised);
     }
   }

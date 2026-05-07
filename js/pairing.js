@@ -47,6 +47,7 @@ export class PairingManager {
 
   /** Join a remote session by 6-char code (works for both roles) */
   async joinByCode(code) {
+    console.log('[pairing] joinByCode', code, 'relay:', this._relay ? 'present' : 'null');
     if (!this._relay) {
       showToast('No relay found on LAN — use QR scan or Offline SDP instead', 'error');
       return false;
@@ -55,6 +56,7 @@ export class PairingManager {
       this._relay.send({ type: 'HELLO', room: code, peerId: this._peerId });
       return true;
     } catch (err) {
+      console.error('[pairing] joinByCode failed:', err);
       showToast(`Pairing failed: ${err.message}`, 'error');
       return false;
     }
@@ -178,15 +180,19 @@ export class PairingManager {
   async _discoverAndConnectRelay() {
     // 1. Try same-origin cloud relay (works when online)
     try {
+      console.log('[relay] probing cloud relay at', `${location.origin}/ping`);
       const resp = await fetch(`${location.origin}/ping`, { signal: AbortSignal.timeout(2000) });
       const data = await resp.json();
+      console.log('[relay] /ping response:', data);
       if (data?.relay) {
         const wsUrl = `${location.origin.replace(/^http/, 'ws')}/relay`;
         this._relayUrl = wsUrl;
         this._connectRelay(wsUrl);
         return; // skip LAN probing
       }
-    } catch { /* offline or not deployed */ }
+    } catch (e) {
+      console.warn('[relay] cloud relay probe failed:', e.message);
+    }
 
     // 2. LAN subnet probe fallback
     try {
@@ -194,38 +200,60 @@ export class PairingManager {
       const probeIPs = [];
       for (const ip of localIPs) probeIPs.push(...subnetPeers(ip));
       probeIPs.push('127.0.0.1');
+      console.log('[relay] probing LAN IPs:', probeIPs.length, 'addresses');
 
       const relayUrl = await discoverRelay([...new Set(probeIPs)], RELAY_PORT);
       if (relayUrl) {
+        console.log('[relay] LAN relay found at', relayUrl);
         this._relayUrl = relayUrl;
         this._connectRelay(relayUrl);
+      } else {
+        console.warn('[relay] no relay found on LAN or cloud');
       }
-    } catch { /* non-fatal */ }
+    } catch (e) {
+      console.warn('[relay] LAN probe error:', e.message);
+    }
   }
 
   _connectRelay(wsUrl) {
+    console.log('[relay] connecting to', wsUrl, 'room:', this._sessionCode);
     this._relay = new RelayClient(wsUrl, this._peerId);
     this._relay.connect(this._sessionCode);
 
     this._relay.on('connected', () => {
+      console.log('[relay] connected, peerId:', this._peerId, 'room:', this._sessionCode);
       showToast('Relay connected — auto-discovery active', 'success');
     });
 
     this._relay.on('OFFER', async msg => {
-      if (msg.targetPeerId && msg.targetPeerId !== this._peerId) return;
+      console.log('[relay] OFFER received from', msg.senderId, '→', msg.targetPeerId);
+      if (msg.targetPeerId && msg.targetPeerId !== this._peerId) {
+        console.log('[relay] OFFER not for us, ignoring');
+        return;
+      }
       const remotePeerId = msg.senderId;
       try {
+        console.log('[relay] creating answer for', remotePeerId);
         const answer = await this._peerManager.createAnswer(remotePeerId, msg.payload.sdp);
+        console.log('[relay] sending ANSWER to', remotePeerId);
         this._relay.send({
           type: 'ANSWER', senderId: this._peerId, targetPeerId: remotePeerId,
           room: msg.room ?? this._sessionCode, payload: { sdp: answer },
         });
-      } catch { /* ignore */ }
+      } catch (e) {
+        console.error('[relay] createAnswer failed:', e);
+      }
     });
 
     this._relay.on('ANSWER', async msg => {
+      console.log('[relay] ANSWER received from', msg.senderId);
       if (msg.targetPeerId && msg.targetPeerId !== this._peerId) return;
-      await this._peerManager.applyAnswer(msg.senderId, msg.payload.sdp).catch(() => {});
+      try {
+        await this._peerManager.applyAnswer(msg.senderId, msg.payload.sdp);
+        console.log('[relay] answer applied for', msg.senderId);
+      } catch (e) {
+        console.error('[relay] applyAnswer failed:', e);
+      }
     });
 
     this._relay.on('ICE', async msg => {
@@ -235,6 +263,7 @@ export class PairingManager {
 
     this._relay.on('PEER_JOINED', async msg => {
       const role = getState().role;
+      console.log('[relay] PEER_JOINED', msg.peerId, '(our role:', role, ')');
       if (role === 'controller' || role === 'both') {
         await this._initiateConnectionToPeer(msg.peerId);
       }
@@ -244,6 +273,7 @@ export class PairingManager {
     // The controller must initiate connections to those existing peers.
     this._relay.on('ROOM_INFO', async msg => {
       const role = getState().role;
+      console.log('[relay] ROOM_INFO peers:', msg.peers, '(our role:', role, ')');
       if (role === 'controller' || role === 'both') {
         for (const peerId of (msg.peers ?? [])) {
           await this._initiateConnectionToPeer(peerId);
@@ -263,13 +293,17 @@ export class PairingManager {
 
   async _initiateConnectionToPeer(remotePeerId) {
     if (remotePeerId === this._peerId || this._localPeerIds.has(remotePeerId)) return;
+    console.log('[relay] initiating offer to', remotePeerId);
     try {
       const { sdp } = await this._peerManager.createOffer(remotePeerId);
+      console.log('[relay] sending OFFER to', remotePeerId);
       this._relay?.send({
         type: 'OFFER', senderId: this._peerId, targetPeerId: remotePeerId,
         room: this._sessionCode, payload: { sdp },
       });
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.error('[relay] createOffer failed:', e);
+    }
   }
 
   _updateQRDisplays() {
