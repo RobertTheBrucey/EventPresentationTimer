@@ -1,0 +1,46 @@
+{
+  "name": "WrapCue",
+  "short_name": "WrapCue",
+  "description": "Offline-capable presentation timer with multi-display WebRTC sync.",
+  "start_url": "./index.html?role=controller",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d0d0d",
+  "theme_color": "#1a1a2e",
+  "categories": ["productivity", "utilities"],
+  "lang": "en-AU",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Open Display",
+      "short_name": "Display",
+      "url": "./index.html?role=display",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Open Controller",
+      "short_name": "Controller",
+      "url": "./index.html?role=controller",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

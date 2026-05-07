@@ -1,0 +1,3 @@
+# Cloudflare Pages redirects
+# No SPA routing needed — all content is served from index.html directly.
+# If you add clean URL support in future, add rules here.

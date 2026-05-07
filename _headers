@@ -1,0 +1,15 @@
+# Cloudflare Pages HTTP headers
+
+# Service worker must not be cached by the browser (so updates are picked up)
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+# Manifest should refresh regularly
+/manifest.webmanifest
+  Cache-Control: no-cache
+
+# Allow cross-origin isolation for better performance APIs (optional)
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
