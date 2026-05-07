@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="Offline-capable presentation timer with multi-display WebRTC sync.">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="WrapCue">
+
+  <title>WrapCue</title>
+
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+
+  <link rel="stylesheet" href="./css/base.css">
+  <link rel="stylesheet" href="./css/theme.css">
+  <link rel="stylesheet" href="./css/display.css">
+  <link rel="stylesheet" href="./css/controller.css">
+</head>
+<body data-role="controller">
+
+  <!-- Theme toggle (always visible) -->
+  <button id="theme-toggle" aria-label="Toggle theme" title="Toggle dark/light theme">🌙</button>
+
+  <!-- Display panel -->
+  <div id="display-panel" role="main" aria-label="Display screen">
+    <button id="display-settings-btn" aria-label="Pairing &amp; settings" title="Pairing &amp; settings">⚙</button>
+    <div id="display-bg" class="traffic-green">
+      <!-- Traffic light overlay (full-screen colour) -->
+      <div id="display-inner">
+        <div id="custom-message" class="hidden" aria-live="assertive"></div>
+
+        <div id="clock-row">
+          <span id="wall-clock"></span>
+          <span id="planned-end"></span>
+        </div>
+
+        <div id="countdown" aria-live="polite" aria-label="Time remaining">
+          <span id="countdown-time">--:--</span>
+        </div>
+
+        <div id="speaker-info">
+          <div id="speaker-name"></div>
+          <div id="speaker-title"></div>
+        </div>
+
+        <div id="next-speaker-row">
+          <span class="next-label">Next:</span>
+          <span id="next-speaker-name"></span>
+        </div>
+
+        <div id="pairing-panel" class="hidden">
+          <!-- Tab strip -->
+          <nav id="d-pair-tabs" aria-label="Pairing options">
+            <button class="d-pair-tab active" data-tab="show">Your Code</button>
+            <button class="d-pair-tab" data-tab="scan">Scan QR</button>
+            <button class="d-pair-tab" data-tab="code">Enter Code</button>
+            <button class="d-pair-tab" data-tab="sdp">Offline SDP</button>
+          </nav>
+
+          <!-- Tab: show own QR + code for controller to scan -->
+          <div id="d-pair-show" class="d-pair-content">
+            <p class="pair-hint">Show this to the controller device</p>
+            <div id="display-qr"></div>
+            <div id="display-code" class="pairing-code"></div>
+          </div>
+
+          <!-- Tab: scan controller's QR -->
+          <div id="d-pair-scan" class="d-pair-content hidden">
+            <p class="pair-hint">Scan the QR code shown on the controller</p>
+            <video id="d-scan-video" autoplay playsinline muted></video>
+            <div class="d-scan-controls">
+              <button id="d-btn-start-scan" class="btn-primary" type="button">Open Camera</button>
+              <label class="btn-neutral d-file-label">
+                Upload Image
+                <input id="d-scan-file" type="file" accept="image/*" class="visually-hidden">
+              </label>
+            </div>
+            <p id="d-scan-status" class="pair-hint"></p>
+          </div>
+
+          <!-- Tab: enter controller's 6-char code -->
+          <div id="d-pair-code" class="d-pair-content hidden">
+            <p class="pair-hint">Type the 6-character code shown on the controller</p>
+            <input id="d-join-code-input" type="text" placeholder="XXXXXX" maxlength="6"
+                   autocomplete="off" autocapitalize="characters" spellcheck="false"
+                   style="font-size:2rem;text-align:center;letter-spacing:0.3em;text-transform:uppercase">
+            <button id="d-btn-join-code" class="btn-primary" type="button"
+                    style="width:100%;margin-top:var(--space-md)">Connect</button>
+          </div>
+
+          <!-- Tab: offline SDP (no relay required) -->
+          <div id="d-pair-sdp" class="d-pair-content hidden">
+            <div id="d-sdp-step1">
+              <p class="pair-hint">Step 1 — Show your offer to the controller (scan or copy)</p>
+              <div id="d-offer-qr" class="qr-wrapper"></div>
+              <div class="sdp-copy-row">
+                <textarea id="d-offer-text" rows="3" readonly></textarea>
+                <button id="d-btn-copy-offer" class="btn-neutral" type="button">Copy</button>
+              </div>
+            </div>
+            <div id="d-sdp-step2">
+              <p class="pair-hint">Step 2 — Paste the controller's answer below</p>
+              <textarea id="d-answer-input" rows="3"
+                        placeholder="Paste answer SDP here…"></textarea>
+              <button id="d-btn-apply-answer" class="btn-primary" type="button"
+                      style="width:100%;margin-top:var(--space-md)">Connect</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controller panel -->
+  <div id="controller-panel" role="main" aria-label="Timer controller">
+    <header id="ctrl-header">
+      <h1>WrapCue</h1>
+      <div id="peer-status">
+        <span id="peer-count">No displays connected</span>
+        <button id="btn-pair" class="btn-neutral" type="button">Pair device</button>
+      </div>
+    </header>
+
+    <!-- Timer controls -->
+    <section id="timer-section" aria-label="Timer controls">
+      <div id="ctrl-countdown">--:--</div>
+      <div id="ctrl-speaker-info">
+        <span id="ctrl-speaker-name">—</span>
+        <span id="ctrl-speaker-title"></span>
+      </div>
+      <div id="ctrl-buttons">
+        <button id="btn-start"  class="btn-success"  type="button">▶ Start</button>
+        <button id="btn-pause"  class="btn-neutral"  type="button" disabled>⏸ Pause</button>
+        <button id="btn-stop"   class="btn-danger"   type="button" disabled>⏹ Stop</button>
+        <button id="btn-reset"  class="btn-neutral"  type="button" disabled>↺ Reset</button>
+        <button id="btn-next"   class="btn-primary"  type="button" disabled>⏭ Next</button>
+      </div>
+      <div id="traffic-config">
+        <label>
+          Yellow warning at
+          <input id="threshold-yellow" type="number" min="0" max="3600" value="300" style="width:5rem">
+          seconds remaining
+        </label>
+        <label>
+          Red warning at
+          <input id="threshold-red" type="number" min="0" max="3600" value="60" style="width:5rem">
+          seconds remaining
+        </label>
+      </div>
+    </section>
+
+    <!-- Message push -->
+    <section id="message-section" aria-label="Send message to display">
+      <h2>Message to Display</h2>
+      <div class="message-row">
+        <input id="message-input" type="text" placeholder="Type a message for the display…" maxlength="140">
+        <button id="btn-send-message" class="btn-primary" type="button">Send</button>
+        <button id="btn-clear-message" class="btn-neutral" type="button">Clear</button>
+      </div>
+    </section>
+
+    <!-- Schedule -->
+    <section id="schedule-section" aria-label="Speaker schedule">
+      <div class="section-header">
+        <h2>Schedule</h2>
+        <div class="section-header-actions">
+          <button id="btn-import" class="btn-neutral" type="button">⬆ Import</button>
+          <button id="btn-add-slot" class="btn-primary" type="button">+ Add speaker</button>
+        </div>
+      </div>
+
+      <table id="schedule-table" aria-label="Speaker slots">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Title</th>
+            <th>Duration</th>
+            <th>Notes</th>
+            <th aria-label="Actions"></th>
+          </tr>
+        </thead>
+        <tbody id="schedule-tbody">
+          <!-- Populated by controller.js -->
+        </tbody>
+      </table>
+
+      <p id="schedule-empty" class="schedule-empty">No speakers added yet. Click "+ Add speaker" to begin.</p>
+    </section>
+  </div>
+
+  <!-- Pairing modal -->
+  <div id="pairing-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="pairing-modal-title">
+    <div class="modal">
+      <h2 id="pairing-modal-title">Pair a Device</h2>
+      <div id="pairing-tabs">
+        <button class="pairing-tab active" data-tab="qr">QR Code</button>
+        <button class="pairing-tab" data-tab="code">Enter Code</button>
+        <button class="pairing-tab" data-tab="manual">Manual SDP</button>
+      </div>
+      <div id="pairing-tab-qr" class="pairing-tab-content">
+        <p>Scan this QR code on the device you want to pair, or enter the code below.</p>
+        <div id="modal-qr" class="qr-wrapper"></div>
+        <div id="modal-code" class="pairing-code large"></div>
+        <p class="hint">Or share the link: <span id="modal-join-url"></span></p>
+      </div>
+      <div id="pairing-tab-code" class="pairing-tab-content hidden">
+        <p>Enter the code shown on the other device.</p>
+        <input id="join-code-input" type="text" placeholder="XXXXXX" maxlength="6" style="text-transform:uppercase;font-size:1.5rem;text-align:center;letter-spacing:0.3em">
+        <button id="btn-join-code" class="btn-primary" type="button" style="margin-top:var(--space-md);width:100%">Connect</button>
+      </div>
+      <div id="pairing-tab-manual" class="pairing-tab-content hidden">
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:var(--space-md)">
+          Fully offline pairing — no relay or internet required.
+        </p>
+
+        <!-- Sub-tabs: controller offers vs controller answers -->
+        <div id="ctrl-sdp-subtabs">
+          <button class="ctrl-sdp-tab active" data-sdp="offer">I send offer</button>
+          <button class="ctrl-sdp-tab" data-sdp="receive">I receive offer</button>
+        </div>
+
+        <!-- Controller is offerer -->
+        <div id="ctrl-sdp-offer">
+          <label style="margin-top:var(--space-md)">Your offer — show QR or copy to display:
+            <div class="sdp-copy-row">
+              <textarea id="sdp-offer-out" rows="3" readonly></textarea>
+              <button id="btn-copy-ctrl-offer" class="btn-neutral" type="button">Copy</button>
+            </div>
+          </label>
+          <div id="ctrl-offer-qr" class="qr-wrapper" style="margin:var(--space-sm) 0"></div>
+          <label style="margin-top:var(--space-md)">Display's answer — paste here:
+            <textarea id="sdp-answer-in" rows="3" placeholder="Paste answer from display…"></textarea>
+          </label>
+          <button id="btn-apply-sdp" class="btn-primary" type="button"
+                  style="width:100%;margin-top:var(--space-md)">Connect</button>
+        </div>
+
+        <!-- Controller receives display's offer and generates answer -->
+        <div id="ctrl-sdp-receive" class="hidden">
+          <label style="margin-top:var(--space-md)">Display's offer — paste here:
+            <textarea id="sdp-incoming-offer" rows="3" placeholder="Paste offer from display…"></textarea>
+          </label>
+          <button id="btn-generate-answer" class="btn-primary" type="button"
+                  style="width:100%;margin-top:var(--space-md)">Generate Answer</button>
+          <div id="ctrl-answer-wrap" class="hidden" style="margin-top:var(--space-lg)">
+            <p class="pair-hint">Copy or show this QR to the display to complete connection:</p>
+            <div class="sdp-copy-row">
+              <textarea id="sdp-answer-out" rows="3" readonly></textarea>
+              <button id="btn-copy-ctrl-answer" class="btn-neutral" type="button">Copy</button>
+            </div>
+            <div id="ctrl-answer-qr" class="qr-wrapper" style="margin:var(--space-sm) 0"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btn-pairing-close" class="btn-neutral" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slot edit modal -->
+  <div id="slot-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="slot-modal-title">
+    <div class="modal">
+      <h2 id="slot-modal-title">Edit Speaker</h2>
+      <input type="hidden" id="slot-edit-id">
+      <label>Name
+        <input id="slot-edit-name" type="text" placeholder="Speaker name" required>
+      </label>
+      <label style="margin-top:var(--space-md)">Title / Talk
+        <input id="slot-edit-title" type="text" placeholder="Talk title (optional)">
+      </label>
+      <label style="margin-top:var(--space-md)">Duration (MM:SS or minutes)
+        <input id="slot-edit-duration" type="text" placeholder="20:00" required>
+      </label>
+      <label style="margin-top:var(--space-md)">Operator notes (private, not shown on display)
+        <textarea id="slot-edit-notes" rows="3" placeholder="Notes…"></textarea>
+      </label>
+      <div class="modal-actions">
+        <button id="btn-slot-cancel" class="btn-neutral" type="button">Cancel</button>
+        <button id="btn-slot-save" class="btn-primary" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import modal -->
+  <div id="import-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="import-modal-title">
+    <div class="modal">
+      <h2 id="import-modal-title">Import Schedule</h2>
+      <p style="color:var(--text-secondary);margin-bottom:var(--space-md)">
+        Supports CSV (Name, Title, Duration, Notes) or JSON array.
+      </p>
+      <label>Upload file
+        <input id="import-file" type="file" accept=".csv,.json,.txt">
+      </label>
+      <label style="margin-top:var(--space-md)">Or paste content
+        <textarea id="import-text" rows="8" placeholder="Paste CSV or JSON here…"></textarea>
+      </label>
+      <div class="modal-actions">
+        <button id="btn-import-cancel" class="btn-neutral" type="button">Cancel</button>
+        <button id="btn-import-apply" class="btn-primary" type="button">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Install prompt -->
+  <div id="install-banner" class="hidden">
+    <span>Install as app for the best offline experience.</span>
+    <div style="display:flex;gap:var(--space-sm)">
+      <button id="btn-install" class="btn-primary" type="button">Install</button>
+      <button id="btn-install-dismiss" class="btn-neutral" type="button">Dismiss</button>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+  <script src="./js/qrcode-lib.js"></script>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

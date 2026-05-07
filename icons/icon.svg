@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#1a1a2e"/>
+  <!-- Clock face -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="#4f8ef7" stroke-width="20"/>
+  <!-- Clock hands -->
+  <line x1="256" y1="256" x2="256" y2="120" stroke="#22c55e" stroke-width="18" stroke-linecap="round"/>
+  <line x1="256" y1="256" x2="350" y2="310" stroke="#f0f0f0" stroke-width="12" stroke-linecap="round"/>
+  <!-- Center dot -->
+  <circle cx="256" cy="256" r="14" fill="#4f8ef7"/>
+  <!-- Tick marks -->
+  <line x1="256" y1="86" x2="256" y2="106" stroke="#4f8ef7" stroke-width="10" stroke-linecap="round"/>
+  <line x1="256" y1="406" x2="256" y2="426" stroke="#4f8ef7" stroke-width="10" stroke-linecap="round"/>
+  <line x1="86" y1="256" x2="106" y2="256" stroke="#4f8ef7" stroke-width="10" stroke-linecap="round"/>
+  <line x1="406" y1="256" x2="426" y2="256" stroke="#4f8ef7" stroke-width="10" stroke-linecap="round"/>
+</svg>
