@@ -242,6 +242,19 @@ export class PairingManager {
         return;
       }
       const remotePeerId = msg.senderId;
+
+      // Glare: both sides created offers simultaneously — resolve via peerId ordering.
+      // Lower peerId is "impolite" (its offer wins); higher peerId is "polite" (rolls back).
+      const existing = this._peerManager._peers.get(remotePeerId);
+      if (existing?.pc.signalingState === 'have-local-offer') {
+        if (this._peerId < remotePeerId) {
+          console.log('[relay] glare: our offer wins (lower peerId), ignoring incoming offer');
+          return;
+        }
+        console.log('[relay] glare: rolling back our offer, accepting incoming offer');
+        this._peerManager.removePeer(remotePeerId);
+      }
+
       try {
         console.log('[relay] creating answer for', remotePeerId);
         const answer = await this._peerManager.createAnswer(remotePeerId, msg.payload.sdp);
@@ -262,7 +275,8 @@ export class PairingManager {
         await this._peerManager.applyAnswer(msg.senderId, msg.payload.sdp);
         console.log('[relay] answer applied for', msg.senderId);
       } catch (e) {
-        console.error('[relay] applyAnswer failed:', e);
+        // Expected when glare resolution caused our offer to be rolled back
+        console.log('[relay] applyAnswer skipped (glare resolved):', e.message);
       }
     });
 
