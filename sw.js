@@ -1,7 +1,7 @@
 // Service Worker — cache-first strategy for offline PWA support.
 // Bump CACHE_NAME when deploying new versions to invalidate old caches.
 
-const CACHE_NAME = 'ept-v3';
+const CACHE_NAME = 'ept-v4';
 
 const PRECACHE_URLS = [
   './',

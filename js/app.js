@@ -4,7 +4,7 @@ import { initDisplay } from './display.js';
 import { initController } from './controller.js';
 import { PairingManager } from './pairing.js';
 
-const APP_VERSION = 'v1.0';
+const APP_VERSION = 'v1.1';
 
 let _pairing = null;
 

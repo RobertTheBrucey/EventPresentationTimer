@@ -159,7 +159,7 @@ export class PairingManager {
         if (this._localPeerIds.has(msg.from)) return;
         this._localPeerIds.add(msg.from);
         const answer = await this._peerManager.createAnswer(msg.from, msg.sdp, { waitForIce: false });
-        this._localBus.postMessage({ type: 'EPT_ANSWER', to: msg.from, from: this._peerId, sdp: answer });
+        this._localBus.postMessage({ type: 'EPT_ANSWER', to: msg.from, from: this._peerId, sdp: { type: answer.type, sdp: answer.sdp } });
 
       } else if (msg.type === 'EPT_ANSWER' && msg.to === this._peerId) {
         await this._peerManager.applyAnswer(msg.from, msg.sdp).catch(() => {});
@@ -182,7 +182,7 @@ export class PairingManager {
     if (this._localPeerIds.has(peerId)) return;
     this._localPeerIds.add(peerId);
     const { sdp } = await this._peerManager.createOffer(peerId, { waitForIce: false });
-    this._localBus.postMessage({ type: 'EPT_OFFER', to: peerId, from: this._peerId, sdp });
+    this._localBus.postMessage({ type: 'EPT_OFFER', to: peerId, from: this._peerId, sdp: { type: sdp.type, sdp: sdp.sdp } });
   }
 
   // ── Relay ─────────────────────────────────────────────────────────────
