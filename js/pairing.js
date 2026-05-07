@@ -240,6 +240,17 @@ export class PairingManager {
       }
     });
 
+    // ROOM_INFO fires when we join a room that already has members.
+    // The controller must initiate connections to those existing peers.
+    this._relay.on('ROOM_INFO', async msg => {
+      const role = getState().role;
+      if (role === 'controller' || role === 'both') {
+        for (const peerId of (msg.peers ?? [])) {
+          await this._initiateConnectionToPeer(peerId);
+        }
+      }
+    });
+
     // Forward relay ICE — but skip local-bridge peers (they use BroadcastChannel)
     this._peerManager.on('ice-candidate', ({ remotePeerId, candidate }) => {
       if (this._localPeerIds.has(remotePeerId)) return;

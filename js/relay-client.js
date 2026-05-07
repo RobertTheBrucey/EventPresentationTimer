@@ -12,6 +12,7 @@ export class RelayClient {
     this._maxReconnectDelay = 30000;
     this._closed = false;
     this._room = null;
+    this._pending = []; // messages queued before socket is open
   }
 
   /** Connect and join a room */
@@ -34,6 +35,9 @@ export class RelayClient {
     this._ws.onopen = () => {
       this._reconnectDelay = 1000;
       this._send({ type: 'HELLO', room: this._room, peerId: this._peerId });
+      // Flush messages queued before socket opened
+      for (const msg of this._pending) this._ws.send(msg);
+      this._pending = [];
       this._emit('connected');
     };
 
@@ -61,8 +65,11 @@ export class RelayClient {
   }
 
   _send(data) {
+    const serialised = JSON.stringify(data);
     if (this._ws?.readyState === WebSocket.OPEN) {
-      this._ws.send(JSON.stringify(data));
+      this._ws.send(serialised);
+    } else if (!this._closed) {
+      if (this._pending.length < 32) this._pending.push(serialised);
     }
   }
 

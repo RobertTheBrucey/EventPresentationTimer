@@ -6,8 +6,8 @@ const DATACHANNEL_LABEL = 'ept-control';
 const MSG_VERSION = 1;
 
 const ICE_SERVERS = [
-  // No STUN needed for LAN; add public STUN for cross-network use
-  // { urls: 'stun:stun.l.google.com:19302' }
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
 ];
 
 /**
