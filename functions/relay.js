@@ -1,15 +1,15 @@
 // Cloudflare Pages Function — WebSocket signaling relay backed by a Durable Object.
-// The RelayRoom DO maintains room state (peers, WebSocket connections) across requests.
+// Uses the hibernatable WebSockets API so DO sleeps between messages.
 
 export class RelayRoom {
   constructor(state) {
     this.state = state;
-    this.peers = new Map(); // peerId → WebSocket
-    this.rooms = new Map(); // roomCode → Set<peerId>
+    // peerId → { room } — stored in DO memory, rebuilt on wake from attachment tags
   }
 
   async fetch(request) {
     const [client, server] = Object.values(new WebSocketPair());
+    // acceptWebSocket with no tag yet — tag set on HELLO
     this.state.acceptWebSocket(server);
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -20,32 +20,40 @@ export class RelayRoom {
     const { type, peerId, room, targetPeerId } = msg;
 
     if (type === 'HELLO') {
-      ws._peerId = peerId;
-      ws._room = room;
-      this.peers.set(peerId, ws);
-      if (!this.rooms.has(room)) this.rooms.set(room, new Set());
-      this.rooms.get(room).add(peerId);
+      // Store identity on the WebSocket via serialised tag (max 2048 bytes)
+      ws.serializeAttachment({ peerId, room });
 
-      // Notify existing room members
-      for (const pid of this.rooms.get(room)) {
-        if (pid !== peerId) {
-          this.peers.get(pid)?.send(JSON.stringify({ type: 'PEER_JOINED', peerId }));
+      // Notify existing peers in the room
+      for (const peer of this.state.getWebSockets()) {
+        if (peer === ws) continue;
+        const tag = peer.deserializeAttachment();
+        if (tag?.room === room) {
+          peer.send(JSON.stringify({ type: 'PEER_JOINED', peerId }));
         }
       }
-      // Inform the joining peer of who's already in the room
-      ws.send(JSON.stringify({
-        type: 'ROOM_INFO',
-        peers: [...this.rooms.get(room)].filter(p => p !== peerId),
-      }));
+
+      // Tell the new peer who's already in the room
+      const existing = this.state.getWebSockets()
+        .filter(p => p !== ws)
+        .map(p => p.deserializeAttachment())
+        .filter(t => t?.room === room)
+        .map(t => t.peerId);
+      ws.send(JSON.stringify({ type: 'ROOM_INFO', peers: existing }));
       return;
     }
 
     if (type === 'OFFER' || type === 'ANSWER' || type === 'ICE') {
-      if (targetPeerId) {
-        this.peers.get(targetPeerId)?.send(data);
-      } else {
-        for (const pid of (this.rooms.get(ws._room) ?? [])) {
-          if (pid !== ws._peerId) this.peers.get(pid)?.send(data);
+      const senderTag = ws.deserializeAttachment();
+      if (!senderTag) return;
+
+      for (const peer of this.state.getWebSockets()) {
+        if (peer === ws) continue;
+        const tag = peer.deserializeAttachment();
+        if (!tag) continue;
+        if (targetPeerId) {
+          if (tag.peerId === targetPeerId) { peer.send(data); break; }
+        } else {
+          if (tag.room === senderTag.room) peer.send(data);
         }
       }
       return;
@@ -58,17 +66,17 @@ export class RelayRoom {
   webSocketError(ws)  { this._cleanup(ws); }
 
   _cleanup(ws) {
-    const peerId = ws._peerId;
-    const room   = ws._room;
-    if (!peerId) return;
-    this.peers.delete(peerId);
-    const r = this.rooms.get(room);
-    if (!r) return;
-    r.delete(peerId);
-    for (const pid of r) {
-      this.peers.get(pid)?.send(JSON.stringify({ type: 'PEER_LEFT', peerId }));
+    const tag = ws.deserializeAttachment();
+    if (!tag) return;
+    const { peerId, room } = tag;
+    for (const peer of this.state.getWebSockets()) {
+      if (peer === ws) continue;
+      const t = peer.deserializeAttachment();
+      if (t?.room === room) {
+        peer.send(JSON.stringify({ type: 'PEER_LEFT', peerId }));
+      }
     }
-    if (!r.size) this.rooms.delete(room);
+    try { ws.close(); } catch {}
   }
 }
 
@@ -76,6 +84,9 @@ export async function onRequest({ request, env }) {
   if (request.headers.get('Upgrade') !== 'websocket') {
     return new Response('WebSocket upgrade required', { status: 426 });
   }
-  const room = env.ROOMS.get(env.ROOMS.idFromName('global'));
-  return room.fetch(request);
+  if (!env.ROOMS) {
+    return new Response('Relay not configured (missing DO binding)', { status: 503 });
+  }
+  const stub = env.ROOMS.get(env.ROOMS.idFromName('global'));
+  return stub.fetch(request);
 }
