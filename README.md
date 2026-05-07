@@ -172,6 +172,15 @@ Controller Browser  ←──WebRTC DataChannel──►  Display Browser(s)
 
 ## Development
 
+### Before pushing a release
+
+Update both of these in the same commit:
+
+- `APP_VERSION` in `js/app.js` — displayed in the controller header and display settings panel
+- `CACHE_NAME` in `sw.js` — forces installed PWAs to download the new version
+
+### Local dev server
+
 No build step. Serve with any static file server:
 
 ```bash

@@ -71,7 +71,7 @@ const unsubscribe = subscribe((state, action) => {
 
 The reducer handles all action types. Never mutate the state object directly.
 
-State is **not persisted** across page reloads (by design — each session is fresh). The peer ID and theme preference are stored in `localStorage`.
+State is **not persisted** across page reloads (by design — each session is fresh). The peer ID is stored in `sessionStorage` (tab-isolated, survives refresh) and the theme preference is stored in `localStorage` (shared across tabs).
 
 ## Timer State Machine
 
@@ -142,12 +142,24 @@ Endpoints:
 - `ws://` connections join a room by sending `HELLO { room, peerId }`, then exchange `OFFER/ANSWER/ICE` messages
 - CORS headers are `*` on `/ping` so the PWA can probe from any origin
 
-## Service Worker Cache-Busting
+## Releasing a New Version
 
-To force all users to get new files:
-1. Change `CACHE_NAME = 'ept-v1'` to `'ept-v2'` (or any new name) in `sw.js`
-2. Add any new files to `PRECACHE_URLS`
-3. Deploy — the SW `activate` event deletes all old caches
+On every push that users will see, update **both** of these in the same commit:
+
+1. `APP_VERSION` in `js/app.js` — shown in the controller header and display settings panel
+2. `CACHE_NAME` in `sw.js` — forces all cached browsers to download new files
+
+```js
+// js/app.js
+const APP_VERSION = 'v1.1';  // bump this
+
+// sw.js
+const CACHE_NAME = 'ept-v4';  // bump this (any unique string works)
+```
+
+Also add any new asset files to `PRECACHE_URLS` in `sw.js` so they are cached on install.
+
+The SW `activate` event automatically deletes all old caches once the new version activates.
 
 ## Cloudflare Pages Deployment
 
