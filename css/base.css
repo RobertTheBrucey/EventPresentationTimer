@@ -137,6 +137,13 @@ th, td { text-align: left; padding: var(--space-sm); border-bottom: 1px solid va
 th { color: var(--text-secondary); font-size: 0.85rem; font-weight: 600; }
 
 /* Utility classes */
+.version-badge {
+  font-size: 0.7rem;
+  opacity: 0.4;
+  font-weight: normal;
+  letter-spacing: 0.05em;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px; height: 1px;

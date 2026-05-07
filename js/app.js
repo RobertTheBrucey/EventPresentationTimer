@@ -4,6 +4,8 @@ import { initDisplay } from './display.js';
 import { initController } from './controller.js';
 import { PairingManager } from './pairing.js';
 
+const APP_VERSION = 'v1.0';
+
 let _pairing = null;
 
 async function main() {
@@ -15,6 +17,12 @@ async function main() {
 
   // Set body role
   document.body.setAttribute('data-role', state.role);
+
+  // Inject version
+  for (const id of ['ctrl-version', 'd-version']) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = APP_VERSION;
+  }
 
   // Theme toggle
   document.getElementById('theme-toggle')?.addEventListener('click', () => {
