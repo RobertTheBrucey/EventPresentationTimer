@@ -22,6 +22,8 @@ export function initController(pairingManager) {
   subscribe(_onStateChange);
   _render(getState());
   _startRaf();
+
+  pairingManager.onDiscoveredChange = peers => _renderDiscovered(peers, 'ctrl-discovered-list', 'ctrl-discovered-empty');
 }
 
 // ── Timer buttons ────────────────────────────────────────────────────
@@ -451,4 +453,31 @@ function _esc(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function _renderDiscovered(peers, listId, emptyId) {
+  const list = $(listId);
+  const empty = $(emptyId);
+  if (!list) return;
+  list.innerHTML = '';
+  if (!peers.length) {
+    empty?.classList.remove('hidden');
+    return;
+  }
+  empty?.classList.add('hidden');
+  for (const peer of peers) {
+    const row = document.createElement('div');
+    row.className = 'discovered-peer';
+    const label = document.createElement('span');
+    label.textContent = peer.role.charAt(0).toUpperCase() + peer.role.slice(1);
+    const btn = document.createElement('button');
+    btn.className = 'btn-primary';
+    btn.textContent = 'Connect';
+    btn.addEventListener('click', () => {
+      _pairingManager?.connectToLocalPeer(peer.peerId);
+      $('pairing-modal')?.classList.add('hidden');
+    });
+    row.append(label, btn);
+    list.appendChild(row);
+  }
 }

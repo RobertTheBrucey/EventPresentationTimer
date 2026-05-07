@@ -22,7 +22,10 @@ export function initDisplay(pairingManager) {
   setInterval(_updateWallClock, 1000);
   _updateWallClock();
 
-  if (pairingManager) _initPairingControls(pairingManager);
+  if (pairingManager) {
+    _initPairingControls(pairingManager);
+    pairingManager.onDiscoveredChange = peers => _renderDiscovered(peers, 'd-discovered-list', 'd-discovered-empty', pairingManager);
+  }
 }
 
 function _onStateChange(state) {
@@ -353,4 +356,28 @@ function _stopScan() {
   if (video) { video.srcObject = null; video.classList.remove('active'); }
   const btn = $('d-btn-start-scan');
   if (btn) btn.textContent = 'Open Camera';
+}
+
+function _renderDiscovered(peers, listId, emptyId, pairing) {
+  const list = $(listId);
+  const empty = $(emptyId);
+  if (!list) return;
+  list.innerHTML = '';
+  if (!peers.length) {
+    empty?.classList.remove('hidden');
+    return;
+  }
+  empty?.classList.add('hidden');
+  for (const peer of peers) {
+    const row = document.createElement('div');
+    row.className = 'discovered-peer';
+    const label = document.createElement('span');
+    label.textContent = peer.role.charAt(0).toUpperCase() + peer.role.slice(1);
+    const btn = document.createElement('button');
+    btn.className = 'btn-primary';
+    btn.textContent = 'Connect';
+    btn.addEventListener('click', () => pairing.connectToLocalPeer(peer.peerId));
+    row.append(label, btn);
+    list.appendChild(row);
+  }
 }

@@ -59,6 +59,7 @@
             <button class="d-pair-tab active" data-tab="show">Your Code</button>
             <button class="d-pair-tab" data-tab="scan">Scan QR</button>
             <button class="d-pair-tab" data-tab="code">Enter Code</button>
+            <button class="d-pair-tab" data-tab="discovered">Discovered</button>
             <button class="d-pair-tab" data-tab="sdp">Offline SDP</button>
           </nav>
 
@@ -67,6 +68,13 @@
             <p class="pair-hint">Show this to the controller device</p>
             <div id="display-qr"></div>
             <div id="display-code" class="pairing-code"></div>
+          </div>
+
+          <!-- Tab: discovered devices on this browser -->
+          <div id="d-pair-discovered" class="d-pair-content hidden">
+            <p class="pair-hint">Other WrapCue instances open on this device</p>
+            <div id="d-discovered-list"></div>
+            <p id="d-discovered-empty" class="pair-hint hidden">No other instances found</p>
           </div>
 
           <!-- Tab: scan controller's QR -->
@@ -202,7 +210,13 @@
       <div id="pairing-tabs">
         <button class="pairing-tab active" data-tab="qr">QR Code</button>
         <button class="pairing-tab" data-tab="code">Enter Code</button>
+        <button class="pairing-tab" data-tab="discovered">Discovered</button>
         <button class="pairing-tab" data-tab="manual">Manual SDP</button>
+      </div>
+      <div id="pairing-tab-discovered" class="pairing-tab-content hidden">
+        <p>Other WrapCue instances open on this device</p>
+        <div id="ctrl-discovered-list"></div>
+        <p id="ctrl-discovered-empty" class="hint hidden">No other instances found</p>
       </div>
       <div id="pairing-tab-qr" class="pairing-tab-content">
         <p>Scan this QR code on the device you want to pair, or enter the code below.</p>
