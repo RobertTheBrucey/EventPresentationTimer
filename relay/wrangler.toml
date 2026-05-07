@@ -1,8 +1,11 @@
-name = "wrapcue"
-pages_build_output_dir = "."
+name = "wrapcue-relay"
+main = "worker.js"
 compatibility_date = "2024-01-01"
 
 [[durable_objects.bindings]]
 name = "ROOMS"
 class_name = "RelayRoom"
-script_name = "wrapcue-relay"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["RelayRoom"]
